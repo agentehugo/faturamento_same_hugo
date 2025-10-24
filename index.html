@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sistema de Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing:border-box; margin:0; padding:0; font-family:'Roboto',sans-serif;}
+body {height:100vh;width:100vw;display:flex;justify-content:center;align-items:center;background:url("hugo.jpg") no-repeat center center fixed;background-size:cover;transition:background 0.5s ease;overflow:hidden;}
+#containerLogin{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#f0f4ff;padding:30px 40px;border-radius:16px;box-shadow:0 10px 25px rgba(0,0,0,0.3);width:100%;max-width:400px;text-align:center;color:#1e3c72;opacity:0;pointer-events:none;transition:opacity 0.6s ease;}
+#containerLogin.showLogin{opacity:1;pointer-events:auto;}
+h2{margin-bottom:20px;color:#1e3c72;text-align:center;}
+input{width:100%;padding:12px 15px;margin:10px 0;border:2px solid #4e70c8;border-radius:12px;font-size:16px;outline:none;transition:border-color 0.3s, background-color 0.4s, box-shadow 0.4s;}
+input:focus{border-color:#1e3c72;}
+button{width:100%;padding:12px;margin-top:10px;background:linear-gradient(135deg,#4e70c8,#1e3c72);color:#fff;border:none;border-radius:12px;font-size:16px;cursor:pointer;transition:background 0.3s, transform 0.2s;box-shadow:0 5px 15px rgba(0,0,0,0.2);}
+button:hover{background:linear-gradient(135deg,#1e3c72,#4e70c8);transform:translateY(-2px);}
+#painelAdmin{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);flex-direction:row;justify-content:space-between;align-items:flex-start;gap:20px;width:90%;max-width:1200px;background:rgba(240,244,255,0.95);border-radius:16px;padding:30px;color:#1e3c72;box-shadow:0 10px 25px rgba(0,0,0,0.3);}
+.adminContainer{display:flex;width:100%;gap:20px;}
+.adminSide{flex:0 0 20%;background:#e0e7ff;border-radius:16px;padding:20px;text-align:center;}
+.adminMain{flex:0 0 80%;background:#f9faff;border-radius:16px;padding:20px;overflow-y:auto;max-height:80vh;}
+table{width:100%;border-collapse:collapse;margin-top:20px;}
+th,td{padding:12px;text-align:center;border-bottom:1px solid #4e70c8;}
+th{background-color:#4e70c8;color:#fff;}
+tr:nth-child(even){background-color:#e0e7ff;}
+tr:hover{background-color:#c3d1ff;}
+.logoutAdmin{background:linear-gradient(135deg,#c43c3c,#a83232);margin-top:15px;}
+.logoutAdmin:hover{background:linear-gradient(135deg,#a83232,#c43c3c);}
+@media(max-width:900px){#painelAdmin{flex-direction:column;}.adminSide,.adminMain{flex:1 1 100%;}}
+</style>
+</head>
+<body>
+
+<div id="containerLogin" class="showLogin">
+  <h2>Login</h2>
+  <input type="text" id="usuario" placeholder="Usuário">
+  <input type="password" id="senha" placeholder="Senha">
+  <button onclick="login()">Entrar</button>
+</div>
+
+<div id="painelAdmin">
+  <div class="adminContainer">
+    <div class="adminSide">
+      <h3>Administrador</h3>
+      <input type="text" value="admin" readonly>
+      <button class="logoutAdmin" onclick="logout()">Logout</button>
+
+      <h4 style="margin-top:20px;">Cadastro de Usuário</h4>
+      <input type="text" id="novoUsuario" placeholder="Nome de usuário">
+      <input type="text" id="nomeCompleto" placeholder="Nome completo">
+      <input type="password" id="novaSenha" placeholder="Senha">
+      <button onclick="cadastrarUsuario()">Cadastrar</button>
+    </div>
+
+    <div class="adminMain">
+      <h3>Bem-vindo, Administrador</h3>
+      <h4>Lista de Usuários</h4>
+      <table>
+        <thead>
+          <tr><th>Usuário</th><th>Nome</th><th>Tipo</th><th>Tempo de Uso</th><th>Ações</th></tr>
+        </thead>
+        <tbody id="tabelaUsuarios"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// Inicialização
+if(!localStorage.getItem('usuarios')) { localStorage.setItem('usuarios', JSON.stringify([])); }
+
+// Login
+function login() {
+  const user = document.getElementById("usuario").value.trim();
+  const pass = document.getElementById("senha").value.trim();
+
+  if (user === "admin" && pass === "admin123") {
+    localStorage.setItem("usuarioLogado", "Administrador");
+    document.getElementById("containerLogin").classList.remove("showLogin");
+    document.getElementById("painelAdmin").style.display = "flex";
+    document.body.style.background = "#1e3c72";
+    document.body.style.backgroundImage = "none";
+    iniciarTempoUsuario("admin");
+    atualizarTabela();
+  } else {
+    const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+    const usuarioAtual = usuarios.find(u => u.usuario === user && u.senha === pass);
+    if (usuarioAtual) {
+      localStorage.setItem("usuarioLogado", usuarioAtual.nome); // salva o nome
+      alert(`Bem-vindo, ${usuarioAtual.nome}!`);
+      iniciarTempoUsuario(user);
+      window.location.href = "formulario7.html";
+    } else {
+      alert("Usuário ou senha incorretos!");
+    }
+  }
+}
+
+
+// Logout
+function logout() {
+  finalizarTempoUsuario("admin");
+  document.getElementById("painelAdmin").style.display="none";
+  document.getElementById("containerLogin").classList.add("showLogin");
+  document.body.style.background = 'url("hugo.jpg") no-repeat center center fixed';
+  document.body.style.backgroundSize = 'cover';
+  document.getElementById("usuario").value = "";
+  document.getElementById("senha").value = "";
+}
+
+// Cadastrar usuário
+function cadastrarUsuario() {
+  const novoUser = document.getElementById('novoUsuario').value.trim();
+  const nomeCompleto = document.getElementById('nomeCompleto').value.trim();
+  const novaSenha = document.getElementById('novaSenha').value.trim();
+  if(!novoUser || !nomeCompleto || !novaSenha){ alert("Preencha todos os campos!"); return; }
+
+  let usuarios = JSON.parse(localStorage.getItem('usuarios'));
+  if(usuarios.some(u=>u.usuario===novoUser)){ alert("Usuário já existe!"); return; }
+
+  usuarios.push({usuario:novoUser,nome:nomeCompleto,senha:novaSenha,tipo:'usuário',tempoUso:'0 min',ultimoLogin:null});
+  localStorage.setItem('usuarios',JSON.stringify(usuarios));
+  alert(`Usuário ${nomeCompleto} cadastrado com sucesso!`);
+  document.getElementById('novoUsuario').value='';
+  document.getElementById('nomeCompleto').value='';
+  document.getElementById('novaSenha').value='';
+  atualizarTabela();
+}
+
+// Atualizar tabela
+function atualizarTabela(){
+  const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+  const tbody = document.getElementById('tabelaUsuarios');
+  tbody.innerHTML = '';
+
+  usuarios.forEach((u,index)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${u.usuario}</td><td>${u.nome}</td><td>${u.tipo}</td><td>${u.tempoUso}</td>
+      <td>
+        <button onclick="editarUsuario(${index})">Editar</button>
+        <button onclick="excluirUsuario(${index})">Excluir</button>
+        <button onclick="verTempoUso(${index})">Tempo de Uso</button>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// Editar
+function editarUsuario(index){
+  const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+  const novoNome = prompt("Digite o novo nome completo:", usuarios[index].nome);
+  const novaSenha = prompt("Digite a nova senha:", usuarios[index].senha);
+  if(novoNome && novaSenha){
+    usuarios[index].nome=novoNome;
+    usuarios[index].senha=novaSenha;
+    localStorage.setItem('usuarios',JSON.stringify(usuarios));
+    atualizarTabela();
+    alert("Usuário atualizado!");
+  }
+}
+
+// Excluir
+function excluirUsuario(index){
+  const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+  if(confirm(`Deseja excluir o usuário ${usuarios[index].nome}?`)){
+    usuarios.splice(index,1);
+    localStorage.setItem('usuarios',JSON.stringify(usuarios));
+    atualizarTabela();
+  }
+}
+
+// Tempo de uso
+function iniciarTempoUsuario(usuario){
+  const usuarios = JSON.parse(localStorage.getItem('usuarios'))||[];
+  if(usuario==="admin"){ usuarios.push({usuario:"admin",tempoUso:'0 min',ultimoLogin:new Date().getTime()}); return; }
+  const idx = usuarios.findIndex(u=>u.usuario===usuario);
+  if(idx!==-1){ usuarios[idx].ultimoLogin=new Date().getTime(); localStorage.setItem('usuarios',JSON.stringify(usuarios)); }
+}
+
+function finalizarTempoUsuario(usuario){
+  const usuarios = JSON.parse(localStorage.getItem('usuarios'))||[];
+  if(usuario==="admin"){
+    const adminIdx = usuarios.findIndex(u=>u.usuario==="admin");
+    if(adminIdx!==-1){
+      const minutos = Math.floor((new Date().getTime() - usuarios[adminIdx].ultimoLogin)/60000);
+      usuarios[adminIdx].tempoUso = (parseInt(usuarios[adminIdx].tempoUso)||0)+minutos+' min';
+      usuarios[adminIdx].ultimoLogin=null;
+      localStorage.setItem('usuarios',JSON.stringify(usuarios));
+    }
+    return;
+  }
+  const idx = usuarios.findIndex(u=>u.usuario===usuario);
+  if(idx!==-1 && usuarios[idx].ultimoLogin){
+    const minutos = Math.floor((new Date().getTime() - usuarios[idx].ultimoLogin)/60000);
+    usuarios[idx].tempoUso=(parseInt(usuarios[idx].tempoUso)||0)+minutos+' min';
+    usuarios[idx].ultimoLogin=null;
+    localStorage.setItem('usuarios',JSON.stringify(usuarios));
+    atualizarTabela();
+  }
+}
+
+// Visualizar tempo de uso
+function verTempoUso(index){
+  const usuarios = JSON.parse(localStorage.getItem('usuarios'));
+  alert(`O usuário ${usuarios[index].nome} ficou logado por ${usuarios[index].tempoUso}`);
+}
+
+// Atualiza tabela ao carregar
+atualizarTabela();
+</script>
+</body>
+</html>

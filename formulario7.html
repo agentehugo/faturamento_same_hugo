@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Controle de Entrega – Laudos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+<style>
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f1f5f9;
+  margin: 0;
+  padding: 20px;
+}
+h2 { color: #1e3a8a; margin-bottom: 10px; }
+.container { display: flex; gap: 20px; align-items: flex-start; }
+.formulario, .salvas {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+}
+.formulario { flex: 2; }
+.salvas { flex: 1; max-height: 400px; overflow-y: auto; position: relative; }
+.salvas h3 { margin-top: 0; color: #1e3a8a; text-align: center; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+textarea { width: 95%; height: 120px; font-family: monospace; font-size: 13px; padding: 8px; border-radius: 5px; border:1px solid #ccc; resize: vertical; }
+button { padding: 8px 16px; background:#2563eb; color:white; border:none; border-radius:6px; cursor:pointer; margin:5px 0; }
+button:hover { background:#1d4ed8; }
+label { display:block; margin-top:8px; font-weight:600; }
+input, select { padding:6px; border-radius:6px; border:1px solid #ccc; margin-left:4px; }
+.bloco { background:#f9fafb; padding:10px; margin-bottom:8px; border-radius:8px; border:1px solid #e5e7eb; }
+.bloco strong { color:#1e3a8a; display:block; }
+.bloco small { color:#4b5563; }
+.bloco button { font-size:12px; padding:4px 8px; margin-top:6px; border:none; border-radius:4px; cursor:pointer; }
+.bloco button.edit { background:#2563eb; color:white; margin-right:5px; }
+.bloco button.edit:hover { background:#1d4ed8; }
+.bloco button.delete { background:#ef4444; color:white; }
+.bloco button.delete:hover { background:#dc2626; }
+#limparTodas { background:#f59e0b; color:white; width:100%; margin-top:5px; }
+#limparTodas:hover { background:#d97706; }
+</style>
+</head>
+<body>
+
+<h2>Controle de Entrega – Laudos</h2>
+<div class="container">
+
+  <div class="formulario">
+    <p>Cole os dados do Excel (uma ou mais linhas) abaixo:</p>
+    <textarea id="excelData" placeholder="Ex: Nº[TAB]Nome[TAB]Admissão[TAB]Alta[TAB]..."></textarea>
+
+    <label>Mês:
+      <select id="mes">
+        <option>Janeiro</option><option>Fevereiro</option><option>Março</option>
+        <option>Abril</option><option>Maio</option><option>Junho</option>
+        <option>Julho</option><option>Agosto</option><option>Setembro</option>
+        <option>Outubro</option><option>Novembro</option><option>Dezembro</option>
+      </select>
+    </label>
+
+    <label>Ano:
+      <select id="ano"></select>
+    </label>
+
+    <label>Responsável:
+      <input type="text" id="responsavel" placeholder="Digite o responsável">
+    </label>
+
+    <label>Médico Auditor:
+      <input type="text" id="auditor" placeholder="Digite o médico auditor">
+    </label>
+
+    <label>Tipo de Alta:
+      <select id="tipoAlta">
+        <option>Alta Administrativa</option>
+        <option>Clínica</option>
+        <option>Cirúrgica</option>
+        <option>Clínica/Cirúrgica</option>
+        <option>Eletiva</option>
+      </select>
+    </label>
+
+    <label>Nº Planilha:
+      <select id="numeroPlanilha"></select>
+    </label>
+
+    <button onclick="adicionarBloco()">Adicionar Planilha</button>
+    <button onclick="gerarPDF()">Gerar PDF</button>
+  </div>
+
+  <div class="salvas">
+    <h3>Planilhas Salvas</h3>
+    <div id="blocosContainer"></div>
+    <button id="limparTodas" onclick="limparTudo()">🔄 Limpar todas as planilhas</button>
+  </div>
+
+</div>
+
+<script>
+// Preenche anos dinamicamente (2024–2030)
+const anoSelect = document.getElementById('ano');
+for(let a=2024;a<=2030;a++){
+  let opt = document.createElement('option');
+  opt.text = a; opt.value = a;
+  if(a===2025) opt.selected = true;
+  anoSelect.appendChild(opt);
+}
+
+// Preenche número de planilhas
+const numeroPlanilha = document.getElementById('numeroPlanilha');
+for(let i=1;i<=60;i++){
+  let opt=document.createElement('option');
+  opt.value=i; opt.text=i;
+  numeroPlanilha.appendChild(opt);
+}
+
+let blocos = [];
+
+// ---- LOCAL STORAGE ----
+window.onload = function(){
+  const salvos = localStorage.getItem('planilhas');
+  if(salvos){
+    blocos = JSON.parse(salvos);
+    atualizarLista();
+  }
+};
+function salvarLocal(){
+  localStorage.setItem('planilhas', JSON.stringify(blocos));
+}
+
+// ---- ADICIONAR BLOCO ----
+function adicionarBloco(){
+  const raw = document.getElementById('excelData').value.trim();
+  if(!raw){ alert('Cole os dados da planilha primeiro'); return; }
+
+  const linhas = raw.split('\n').map(l=>l.split('\t').map(c=>c.trim()));
+
+  const novoBloco = {
+    mes: document.getElementById('mes').value,
+    ano: document.getElementById('ano').value,
+    responsavel: document.getElementById('responsavel').value,
+    auditor: document.getElementById('auditor').value,
+    tipoAlta: document.getElementById('tipoAlta').value,
+    numeroPlanilha: document.getElementById('numeroPlanilha').value,
+    linhas: linhas
+  };
+
+  blocos.push(novoBloco);
+  salvarLocal();
+  atualizarLista();
+  document.getElementById('excelData').value='';
+}
+
+// ---- ATUALIZA LISTA ----
+function atualizarLista(){
+  const container = document.getElementById('blocosContainer');
+  container.innerHTML='';
+  if(blocos.length===0){
+    container.innerHTML='<p style="text-align:center;color:#6b7280;">Nenhuma planilha adicionada.</p>';
+    return;
+  }
+  blocos.forEach((b, index)=>{
+    const div = document.createElement('div');
+    div.className='bloco';
+    div.innerHTML = `
+      <strong>Planilha nº ${b.numeroPlanilha}</strong>
+      <small>${b.tipoAlta} — ${b.mes}/${b.ano}</small><br>
+      <small>Resp.: ${b.responsavel} – Auditor: ${b.auditor}</small><br>
+      <button class="edit" onclick="editarBloco(${index})">Editar</button>
+      <button class="delete" onclick="removerBloco(${index})">Remover</button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+// ---- REMOVER BLOCO ----
+function removerBloco(index){
+  if(confirm('Remover esta planilha?')){
+    blocos.splice(index,1);
+    salvarLocal();
+    atualizarLista();
+  }
+}
+
+// ---- EDITAR BLOCO ----
+function editarBloco(index){
+  const b = blocos[index];
+  document.getElementById('mes').value = b.mes;
+  document.getElementById('ano').value = b.ano;
+  document.getElementById('responsavel').value = b.responsavel;
+  document.getElementById('auditor').value = b.auditor;
+  document.getElementById('tipoAlta').value = b.tipoAlta;
+  document.getElementById('numeroPlanilha').value = b.numeroPlanilha;
+  document.getElementById('excelData').value = b.linhas.map(l=>l.join('\t')).join('\n');
+  blocos.splice(index,1);
+  salvarLocal();
+  atualizarLista();
+}
+
+// ---- LIMPAR TODAS PLANILHAS ----
+function limparTudo(){
+  if(confirm('Deseja realmente limpar todas as planilhas?')){
+    blocos = [];
+    salvarLocal();
+    atualizarLista();
+  }
+}
+
+// ---- GERAR PDF ----
+async function gerarPDF(){
+  if(blocos.length===0){ alert('Nenhuma planilha adicionada'); return; }
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('l','mm','a4');
+  const pageWidth = pdf.internal.pageSize.getWidth();
+
+  for(let i=0;i<blocos.length;i++){
+    const b = blocos[i];
+    pdf.setFillColor(37,99,235);
+    pdf.rect(0,0,pageWidth,25,'F');
+    pdf.setTextColor(220,255,255);
+    pdf.setFontSize(16);
+    pdf.text('CONTROLE DE ENTREGA – LAUDOS', pageWidth/2, 15, {align:'center'});
+
+    pdf.setFillColor(220,235,255);
+    pdf.rect(0,25,pageWidth,10,'F');
+    pdf.setTextColor(0,0,80);
+    pdf.setFontSize(9);
+    pdf.text(`Mês: ${b.mes}    Ano: ${b.ano}`,10,32);
+    pdf.text(`Responsável: ${b.responsavel}    Médico Auditor: ${b.auditor}`,80,32);
+    pdf.text(`Tipo de Alta: ${b.tipoAlta}    Nº Planilha: ${b.numeroPlanilha}`,180,32);
+
+    pdf.setTextColor(0,0,0);
+    pdf.text(`Unidade: HOSPITAL DE URGÊNCIAS DE GOIÁS`,10,40);
+    pdf.text(`Tipo de Internação: URGÊNCIA/ HOSPITALAR`,140,40);
+
+    pdf.autoTable({
+      startY:48,
+      head:[["Nº","Nome","Admissão","Alta","Nº Atendimento","Nº SAME","Data Nasc"]],
+      body:b.linhas,
+      theme:'grid',
+      headStyles:{fillColor:[180,205,230],textColor:0,halign:'center'},
+      alternateRowStyles:{fillColor:[245,245,245]},
+      styles:{fontSize:7,cellPadding:1,overflow:'ellipsize'},
+      margin:{left:10,right:10},
+      columnStyles:{
+        0:{cellWidth:12},1:{cellWidth:65},2:{cellWidth:25},3:{cellWidth:25},
+        4:{cellWidth:25},5:{cellWidth:25},6:{cellWidth:25}
+      }
+    });
+
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    pdf.setFontSize(8);
+    pdf.setTextColor(95);
+    pdf.text(`Gerado em ${new Date().toLocaleString('pt-BR')}`,10,pageHeight-5);
+    pdf.text(`Página ${i+1} de ${blocos.length}`,pageWidth-30,pageHeight-5);
+
+    if(i<blocos.length-1) pdf.addPage();
+  }
+
+  const data = new Date().toLocaleString('pt-BR').replace(/[/:]/g,'-');
+  pdf.save(`controle-laudos-${data}.pdf`);
+}
+</script>
+
+</body>
+</html>
